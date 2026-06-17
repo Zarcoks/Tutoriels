@@ -16,7 +16,6 @@
 7. [Redistribution entre protocoles](#7-redistribution-entre-protocoles)
 8. [Récapitulatif : quand utiliser quoi](#8-récapitulatif--quand-utiliser-quoi)
 9. [Exercices de compréhension générale](#9-exercices-de-compréhension-générale)
-10. [Corrections](#10-corrections)
 
 ---
 
@@ -80,6 +79,28 @@ Vers quel next-hop sont forwardés les paquets destinés à : (a) `192.168.1.200
 
 **Q1.10** — Quelle est la différence entre un **IGP** (Interior Gateway Protocol) et un **EGP** (Exterior Gateway Protocol) ? Donnez un exemple de chaque. Ce tutoriel couvre exclusivement les IGP — pourquoi BGP (un EGP) n'est-il pas abordé ici ?
 
+
+### Corrections — Section 1
+
+**C1.1** — (a) `192.168.1.200` : correspond à `/25` (`192.168.1.128/25` couvre .128–.255) → **10.0.0.3**. (b) `192.168.2.1` : correspond à `/16` seulement → **10.0.0.1**. (c) `10.5.0.1` : aucune route spécifique → route par défaut → **10.0.0.4**. (d) `192.168.1.100` : correspond à `/24` et `/16`, mais `/24` est plus spécifique → **10.0.0.2**.
+
+**C1.2** — Le Longest Prefix Match sélectionne la route dont le masque est le plus long (le plus spécifique) parmi toutes les routes correspondant à l'adresse destination. C'est nécessaire pour permettre à des routes plus générales (agrégats) et plus spécifiques (sous-réseaux) de coexister dans la même table.
+
+**C1.3** — Pour 20 routeurs en maillage complet : chaque routeur a 19 routes statiques (une vers chaque autre). Total : 20 × 19 = **380 commandes `ip route`**.
+
+**C1.4** — Cas appropriés pour le routage statique : (1) route par défaut sur un routeur de bordure Internet (simple et stable) ; (2) réseau à un seul routeur ou réseau stub (un seul chemin possible, pas de redondance) ; (3) route de secours (floating static) avec AD élevée, utilisée uniquement si le protocole dynamique perd la route.
+
+**C1.5** — La route statique reste dans la table (elle ne détecte pas la panne) → les paquets sont envoyés vers le lien down → **black-hole**, les paquets sont perdus. Un protocole dynamique aurait détecté la panne via les mécanismes Hello/Dead, retiré la route, et calculé un chemin alternatif si disponible.
+
+**C1.6** — La **RIB** (Routing Information Base) est la table de routage "brute" peuplée par les protocoles de routage (plusieurs protocoles peuvent proposer des routes). La **FIB** (Forwarding Information Base) est une copie optimisée de la RIB, compilée pour le forwarding rapide (sur Cisco, c'est CEF qui peuple la FIB). C'est la **FIB** qui est consultée lors du forwarding paquet par paquet.
+
+**C1.7** — **Vrai**. Un routeur peut avoir plusieurs routes vers le même réseau, provenant de protocoles différents ou de chemins différents dans le même protocole. La sélection se fait en deux temps : (1) AD la plus faible (entre protocoles différents), (2) métrique la plus faible (au sein du même protocole). Si les deux chemins ont même AD et même métrique, les deux peuvent coexister → **ECMP (Equal-Cost Multi-Path)**.
+
+**C1.8** — La route par défaut (`0.0.0.0/0`) correspond à **toutes les adresses** car tout préfixe IP correspond à un masque de longueur 0 (aucun bit ne doit correspondre). Elle est utilisée en dernier recours lors du LPM : si aucune route plus spécifique ne correspond, la route par défaut est utilisée. C'est le "gateway of last resort".
+
+**C1.9** — Tous les paquets dont la destination ne correspond à **aucune** route plus spécifique dans la table de routage. En pratique, c'est tout le trafic Internet sortant sur un routeur de bordure.
+
+**C1.10** — Un **IGP** route à l'intérieur d'un même domaine administratif (une entreprise, un opérateur). Un **EGP** route entre domaines administratifs distincts (entre opérateurs). Exemples : OSPF/IS-IS (IGP), BGP (EGP). BGP n'est pas abordé ici car il est de nature différente (politique de routage, AS-PATH, attributs complexes) et suppose que l'IGP est déjà en place à l'intérieur de chaque AS.
 ---
 
 ## 2. Protocoles de routage dynamique : concepts communs
@@ -151,6 +172,28 @@ Les premières versions de RIP et IGRP (années 1980) étaient classful — une 
 
 **Q2.10** — Un protocole de routage doit choisir entre deux chemins vers `10.5.0.0/24` : chemin A (3 sauts, lien 1 Gbps) et chemin B (2 sauts, lien 10 Mbps). RIP choisit B. OSPF choisit A. Expliquez pourquoi et lequel est objectivement meilleur pour du trafic réseau réel.
 
+
+### Corrections — Section 2
+
+**C2.1** — OSPF (AD=110) est préféré à RIP (AD=120) — **l'AD d'OSPF est plus faible**. La route OSPF est installée dans la RIB. La route RIP est connue mais non installée.
+
+**C2.2** — La **distance administrative** compare des sources de routage **différentes** (quel protocole croire ?). La **métrique** compare des chemins **au sein du même protocole** (quel chemin est le moins coûteux ?). Exemple : deux routes `10.0.0.0/8` existent — une OSPF (AD=110, coût=20) et une IS-IS (AD=115, coût=5). L'AD est comparée en premier : OSPF gagne (110 < 115) même si IS-IS a un coût plus faible. La métrique IS-IS n'est jamais consultée dans ce cas.
+
+**C2.3** — "Convergé" signifie que tous les routeurs ont une vue cohérente, identique et à jour de la topologie du réseau. En état non-convergé, différents routeurs peuvent avoir des informations contradictoires : R1 pense que le réseau `10.0.0.0/24` est joignable via R2, tandis que R2 pense qu'il est inaccessible → les paquets peuvent tourner en boucle ou être perdus.
+
+**C2.4** — **Vrai**. Si deux chemins OSPF vers le même préfixe ont **la même métrique** (ECMP — Equal-Cost Multi-Path), les deux routes coexistent dans la RIB et la FIB, et le trafic est réparti entre elles (load-balancing). OSPF supporte jusqu'à 16 chemins ECMP par défaut sur Cisco.
+
+**C2.5** — VLSM (Variable Length Subnet Masking) permet d'utiliser des masques de longueur variable sur différents sous-réseaux d'un même réseau (ex: `/30` pour les liens WAN, `/24` pour les LANs, `/32` pour les loopbacks). Un protocole classful suppose un masque fixe par classe d'adresse (classe A = /8, B = /16, C = /24) — il ne peut pas transporter des masques différents, donc ne peut pas gérer VLSM.
+
+**C2.6** — Référence = 100 Mbps. Interface 1 Gbps : 100/1000 = 0.1 → arrondi à **1**. Interface 100 Mbps : 100/100 = **1**. Les deux interfaces ont le même coût → OSPF ne peut pas les différencier ! Solution : `auto-cost reference-bandwidth 10000` (10 Gbps), ce qui donne 10000/1000=10 pour 1G et 10000/100=100 pour 100M.
+
+**C2.7** — La route **statique** (AD=1) est installée dans la RIB — elle est préférée à OSPF (AD=110). Ce comportement n'est **pas toujours souhaitable** : si le lien qui mène à la destination de la route statique tombe, la route statique reste (black-hole), tandis qu'OSPF aurait détecté la panne. Solution : utiliser une route statique "flottante" avec une AD supérieure à OSPF.
+
+**C2.8** — Une **route flottante** est une route statique avec une AD **artificiellement élevée** (> celle du protocole dynamique). Elle n'est installée dans la RIB que si le protocole dynamique n'a plus de route pour cette destination. Exemple : `ip route 10.0.0.0 255.0.0.0 192.168.2.1 130` (AD=130 > OSPF=110) → n'est utilisée que si OSPF n'a plus la route. Cas d'usage : liaison de backup RNIS/4G qui ne s'active qu'en cas de panne du lien principal.
+
+**C2.9** — Un **IGP** gère le routage à l'intérieur d'un seul domaine administratif (une entreprise, un AS). Il est optimisé pour la convergence rapide et la métrique de chemin. Un **EGP** (BGP) gère le routage entre domaines administratifs distincts — il prend des décisions basées sur des politiques (AS-PATH, communities) plutôt que sur des métriques pures. Un opérateur utilise un IGP en interne pour la convergence rapide et BGP vers les autres opérateurs pour la politique de routage inter-AS.
+
+**C2.10** — RIP choisit le chemin à **2 sauts** (B) car sa métrique est le nombre de sauts. OSPF choisit le chemin à **3 sauts** (A) car sa métrique est le coût basé sur la bande passante — un lien 1 Gbps a un coût bien plus faible qu'un lien 10 Mbps. **OSPF a raison** : en réseau réel, la bande passante disponible est bien plus pertinente que le nombre de sauts pour déterminer la qualité d'un chemin.
 ---
 
 ## 3. Protocoles à vecteur de distance — RIP
@@ -213,6 +256,28 @@ RIPv1 (RFC 1058, 1988) est l'un des premiers IGP standardisés pour IP, basé su
 
 **Q3.10** — Pourquoi RIP est-il inadapté à un réseau de plus de 15 sauts ? Quel est le vrai impact opérationnel de cette limite ?
 
+
+### Corrections — Section 3
+
+**C3.1** — 8 sauts entre A et I (`A→B→C→D→E→F→G→H→I`). Métrique sur I = **8**. Comme 8 < 16, la route est installée. Elle reste installable.
+
+**C3.2** — Sans triggered updates ni poison reverse : B avait la route `10.0.0.0/24` via C (métrique 1). Quand le lien B-C tombe, B ne peut plus joindre C. Mais A a appris `10.0.0.0/24` via B (métrique 2). A annonce à B : "je peux joindre 10.0.0.0/24, métrique 2". B installe cette route (métrique 3, via A). A apprend de B que `10.0.0.0/24` est maintenant à métrique 3 → A met à jour à 4. Et ainsi de suite jusqu'à 16 (infini). Pendant ce temps, les paquets vers `10.0.0.0/24` bouclent entre A et B.
+
+**C3.3** — **Split horizon** : R1 n'annonce pas à R2 une route apprise de R2. **Poison reverse** : R1 annonce à R2 la route apprise de R2 mais avec la métrique 16 (infini/inaccessible). Poison reverse est plus agressif car il force explicitement R2 à invalider sa route, alors que split horizon crée simplement un "silence" que R2 peut mal interpréter lors de la convergence.
+
+**C3.4** — Pire cas avec 5 routeurs `R1-R2-R3-R4-R5` et panne du lien R4-R5 : R4 détecte la panne et invalide la route R5 dans son prochain update (jusqu'à 30s). R3 reçoit l'info et propage dans son prochain update (30s de plus). Idem pour R2 puis R1. Total pire cas : 4 × 30s = **120 secondes**. En pratique, avec les triggered updates, c'est quasi-immédiat.
+
+**C3.5** — **Vrai**. RIPv2 inclut le masque de sous-réseau dans ses mises à jour (champ subnet mask dans l'entrée RTE). La commande indispensable sur Cisco est `no auto-summary` : sans elle, RIPv2 résume automatiquement les routes aux frontières classful, ce qui peut masquer des sous-réseaux et rendre le VLSM inopérant.
+
+**C3.6** — Le hop count ignore la bande passante, la latence, la fiabilité. Exemple : chemin A via 3 liens 10 Gbps (3 sauts) et chemin B via 1 lien 56 Kbps (1 saut). RIP choisit B (1 saut) — résultat catastrophique en termes de débit. OSPF aurait choisi A car son coût serait bien plus faible.
+
+**C3.7** — Un **triggered update** est une mise à jour envoyée immédiatement quand la topologie change, sans attendre le timer de 30s. Il réduit drastiquement le temps de convergence lors d'une panne (de 30s max à quelques secondes). Il est limité à l'information qui a changé (pas une mise à jour complète).
+
+**C3.8** — **Invalid timer (180s)** : si un routeur ne reçoit aucune mise à jour pour une route pendant 180s, il la marque comme inaccessible (métrique 16) et envoie un triggered update. **Flush timer (240s)** : 60s après l'invalid timer, si toujours pas de mise à jour, la route est **supprimée** de la table de routage.
+
+**C3.9** — Une route avec métrique 16 signifie **inaccessible** dans RIP. Le routeur ne l'installe pas dans sa table et la propage à ses voisins pour qu'ils invalident aussi cette destination.
+
+**C3.10** — Un réseau de plus de 15 sauts a des destinations injoignables pour RIP (métrique ≥ 16 = infini). En pratique, même avec 15 sauts, la convergence est très lente et peu fiable. Impact opérationnel : impossible de déployer RIP dans un réseau géographiquement étendu avec de nombreux nœuds intermédiaires.
 ---
 
 ## 4. Protocoles à état de lien — fondamentaux
@@ -283,6 +348,28 @@ L'algorithme de Dijkstra (1959) est le fondement mathématique des protocoles à
 
 **Q4.10** — Comparez les protocoles à état de lien et à vecteur de distance sur le critère de la charge réseau lors d'un **changement topologique** (panne d'un lien). Lequel génère plus de trafic ? Pourquoi ?
 
+
+### Corrections — Section 4
+
+**C4.1** — (1) Mise sous tension → envoi de messages **Hello** sur toutes les interfaces, découverte des voisins directs. (2) Établissement d'adjacences avec les voisins qui répondent. (3) Génération d'un **LSA/LSP** décrivant les liens locaux. (4) **Inondation** du LSA/LSP à tous les routeurs du domaine (retransmis par chaque routeur sauf sur l'interface source). (5) Accumulation dans la **LSDB**, puis exécution de l'algorithme **SPF (Dijkstra)** pour calculer les meilleurs chemins → installation dans la RIB.
+
+**C4.2** — Les protocoles à état de lien ne souffrent pas du count-to-infinity car chaque routeur a une **vue complète et indépendante** de la topologie. Lors d'une panne, chaque routeur exécute SPF sur sa LSDB et calcule le nouveau chemin optimal sans avoir à "croire" ses voisins — il connaît la topologie globale et peut déduire lui-même que la route n'est plus valide.
+
+**C4.3** — La LSDB est **identique** sur tous les routeurs d'un même domaine de routage (ou d'une même aire pour OSPF) — c'est une propriété fondamentale garantie par le mécanisme d'inondation fiable. Si deux routeurs ont des LSDB différentes (désynchronisation), ils calculent des arbres SPF différents → routes incohérentes → potentiellement des boucles de routage ou des destinations injoignables.
+
+**C4.4** — Lors de l'inondation, chaque routeur retransmet un LSA/LSP reçu sur **toutes ses interfaces sauf celle par laquelle il l'a reçu**. Pour éviter les boucles infinies, chaque LSA porte un **numéro de séquence** : si un routeur reçoit un LSA avec un numéro de séquence qu'il connaît déjà (ou plus ancien), il le jette sans le retransmettre.
+
+**C4.5** — **RIP** : lors d'un changement, chaque routeur envoie une mise à jour complète de sa table à ses voisins, qui à leur tour envoient leur table complète, et ainsi de suite — propagation hop-by-hop, O(N) messages de taille complète. **OSPF** : seul le LSA du lien modifié est inondé (petit message), une seule fois à travers tout le réseau — O(N) messages mais de taille minimale. OSPF est beaucoup plus efficace.
+
+**C4.6** — L'algorithme SPF (Dijkstra) prend en entrée la **LSDB** (graphe de la topologie avec les coûts) et produit en sortie un **arbre des plus courts chemins** depuis le routeur local vers toutes les destinations. Il calcule itérativement la destination la moins coûteuse non encore traitée, puis met à jour les coûts de ses voisins.
+
+**C4.7** — SPF est un algorithme O(N log N) ou O(N²) selon l'implémentation, où N est le nombre de nœuds dans la topologie. Avec des centaines de routeurs, le recalcul SPF peut prendre des dizaines à centaines de millisecondes et consommer du CPU. C'est problématique dans les réseaux très grands ou instables (flap de liens → SPF déclenché fréquemment → CPU saturé). Solution : **SPF throttling** (délais entre recalculs).
+
+**C4.8** — **Vrai**. Une fois la LSDB construite et synchronisée, chaque routeur calcule SPF **indépendamment** sur sa propre copie de la LSDB. Il n'a pas besoin de consulter ses voisins pour cela. C'est précisément ce qui rend les protocoles à état de lien robustes et rapides à converger.
+
+**C4.9** — Si les LSDB sont différentes (désynchronisées), les routeurs calculent des arbres SPF différents et peuvent obtenir des **routes inconsistantes**. Risque : R1 envoie un paquet vers R2 en pensant que R2 peut forwarder vers R3, mais R2 pense que ce chemin n'existe plus → le paquet est perdu ou tourne en boucle.
+
+**C4.10** — Lors d'un changement : **RIP** génère des mises à jour périodiques complètes + triggered update → potentiellement lourd si les tables sont grandes. **OSPF/IS-IS** inondent uniquement le LSA/LSP du lien modifié (quelques centaines d'octets) → très efficace. Pendant la convergence initiale (synchronisation de la LSDB), les protocoles à état de lien peuvent générer plus de trafic, mais ce trafic est rapide et unique — contrairement aux cycles répétés de RIP.
 ---
 
 ## 5. OSPF
@@ -402,6 +489,28 @@ OSPF version 1 est décrit dans la RFC 1131 (1989). La version 2 (RFC 2328, 1998
 
 **Q5.10** — Un ingénieur veut s'assurer que R1 est toujours élu DR sur un segment Ethernet, quels que soient les autres routeurs présents. Quelle commande utilise-t-il ? Que faire pour qu'un routeur ne soit jamais élu DR ?
 
+
+### Corrections — Section 5
+
+**C5.1** — L'Area 0 est obligatoire car elle est le **point de transit** entre toutes les aires. Sans Area 0, les routes inter-areas ne peuvent pas circuler (les LSA de type 3 sont générés par les ABR et propagés dans l'Area 0 vers les autres ABR). Si une aire est connectée uniquement à une autre aire non-backbone, elle est coupée du reste du réseau OSPF — ses routes ne sont pas redistribuées correctement. Solution : virtual link (connexion virtuelle via l'Area 0) pour les aires non directement connectées.
+
+**C5.2** — Sans DR, 8 routeurs formeraient `8×7/2 = 28` adjacences full entre toutes les paires. Avec DR, chaque routeur (DROther) établit uniquement des adjacences **Full** avec DR et BDR = `2 adjacences par DROther`. Pour 6 DROthers : `6×2 + 1 (DR-BDR) = 13` adjacences Full. Réduction significative du nombre d'adjacences et des LSA de type 2 générés.
+
+**C5.3** — Sans configuration manuelle, le Router-ID est l'adresse IP **la plus haute d'une interface Loopback active**, ou à défaut l'adresse IP la plus haute d'une interface physique active. Problème : si le Router-ID change (ajout d'une interface loopback plus haute, ou crash/redémarrage), le routeur doit reset ses adjacences OSPF et re-annoncer tous ses LSA avec le nouveau Router-ID → perturbation du réseau. C'est pourquoi le Router-ID doit toujours être **configuré manuellement** et statiquement.
+
+**C5.4** — Les 7 états : **Down → Init → 2-Way → ExStart → Exchange → Loading → Full**. L'état **Full** indique que les deux routeurs ont échangé et synchronisé leurs LSDB complètes.
+
+**C5.5** — **LSA type 3 (Summary LSA)** : généré par un **ABR**, transporte des routes agrégées d'une aire vers les autres aires via l'Area 0. Propagé dans le domaine OSPF (pas dans l'aire source). **LSA type 5 (AS External LSA)** : généré par un **ASBR**, transporte des routes externes (redistribuées depuis BGP, RIP, statique…). Propagé dans tout le domaine OSPF sauf les Stub Areas.
+
+**C5.6** — Référence 100 Mbps. Lien 1 Gbps : 100/1000 = 0.1 → arrondi à **1**. Lien 10 Gbps : 100/10000 = 0.01 → arrondi à **1**. Problème : tous les liens >= 100 Mbps ont le même coût OSPF = 1 → OSPF ne peut pas différencier un lien 100 Mbps d'un lien 10 Gbps. Solution : `auto-cost reference-bandwidth 10000` (10 Gbps comme référence) → 1G donne coût 10, 10G donne coût 1, 100M donne coût 100.
+
+**C5.7** — **Stub Area** : n'accepte pas les LSA de type 5 (routes externes). L'ABR injecte une route par défaut à la place. Utilisée quand les routeurs de l'aire n'ont pas besoin de connaître les routes externes. **NSSA (Not-So-Stubby Area)** : comme Stub, mais autorise un ASBR local à redistribuer des routes externes (via LSA de type 7, convertis en type 5 par l'ABR). Utilisée quand l'aire a un ASBR local mais qu'on veut quand même limiter les LSA de type 5 entrants.
+
+**C5.8** — Les hello-intervals **doivent être identiques** sur les deux extrémités d'un lien OSPF pour qu'une adjacence s'établisse (de même que le dead-interval). Si R1 a hello-interval=10 et R2 a hello-interval=5, **aucune adjacence ne s'établit** — les paramètres de timer sont échangés dans les paquets Hello et vérifiés par chaque côté.
+
+**C5.9** — **Faux**. Sur un lien **point-à-point** (deux routeurs seulement), il n'y a pas d'élection DR/BDR car la problématique de réduction des adjacences sur un réseau multi-accès ne se pose pas. Les deux routeurs passent directement en état Full sans élire de DR.
+
+**C5.10** — Pour garantir l'élection de R1 comme DR : `ip ospf priority 255` sur l'interface de R1 (valeur max). Pour empêcher un routeur d'être élu DR : `ip ospf priority 0` (priorité 0 exclut de l'élection). Attention : l'élection OSPF n'est **pas préemptive** — si un routeur avec priorité plus élevée arrive après l'élection, le DR actuel reste en place jusqu'à sa panne.
 ---
 
 ## 6. IS-IS
@@ -521,6 +630,33 @@ IS-IS est né du projet OSI (Open Systems Interconnection) de l'ISO dans les ann
 
 **Q6.10** — Un opérateur hésite entre OSPF et IS-IS pour son backbone. Il a 300 routeurs, des liens à 100 Gbps, et prévoit de déployer Segment Routing dans 6 mois. Quelle est votre recommandation et pourquoi ?
 
+
+### Corrections — Section 6
+
+**C6.1** — `49.0002.1921.6800.0001.00` :
+- AFI : `49`
+- Area ID : `0002`
+- System-ID : `1921.6800.0001`
+- NSEL : `00`
+Dérivation IP : `1921.6800.0001` → `192.1.168.0.00.01` → probablement `192.168.0.1` (avec padding).
+
+**C6.2** — IS-IS envoie ses PDU directement en **couche 2** (L2), sans IP. OSPF utilise IP (protocole 89). Avantage IS-IS : il fonctionne même si la configuration IP d'une interface est erronée ou absente, ce qui facilite le troubleshooting et le bootstrapping. IS-IS est aussi plus facile à étendre (TLV) sans dépendre des contraintes IP.
+
+**C6.3** — IS-IS L1 = routage intra-area (comme les areas OSPF non-backbone). IS-IS L2 = backbone inter-area (comme l'Area 0 OSPF). Différence majeure : IS-IS n'impose pas de topologie en étoile — le backbone L2 est un domaine plat, les aires L1 sont en périphérie. OSPF impose que toutes les aires soient physiquement connectées à l'Area 0.
+
+**C6.4** — **Faux**. IS-IS n'a pas de "area backbone" obligatoire au sens OSPF. Le backbone IS-IS est naturellement formé par tous les routeurs L2 (level-2-only ou level-1-2). Aucune area spéciale n'est requise.
+
+**C6.5** — **Non**. Un routeur `level-2-only` ne participe pas aux adjacences L1. Il ne peut former d'adjacences qu'avec d'autres routeurs L2 ou L1/L2 au niveau L2. Un routeur `level-1-only` n'a pas de capacité L2. Ils ne peuvent donc pas établir d'adjacence ensemble.
+
+**C6.6** — **DIS IS-IS** : élection préemptive (un routeur avec une priorité plus haute remplace immédiatement le DIS actuel), pas de backup DIS. **DR OSPF** : élection non-préemptive (le DR reste en place jusqu'à sa panne, même si un routeur avec une priorité plus haute apparaît), BDR existe comme backup.
+
+**C6.7** — `metric-style wide` active les **métriques étendues IS-IS** (32 bits par lien, jusqu'à 16 millions) au lieu des métriques narrow (6 bits, max 63 par lien). Indispensable pour Segment Routing (les SID nécessitent des métriques larges pour les calculs de chemins) et Traffic Engineering (RSVP-TE ou SR-TE utilisent des métriques TE qui ne tiennent pas dans le format narrow).
+
+**C6.8** — (1) **IIH (IS-IS Hello PDU)** : découverte et maintien des adjacences. (2) **LSP (Link State PDU)** : contient l'état des liens d'un routeur, inondé dans tout le domaine. (3) **CSNP (Complete Sequence Number PDU)** : liste complète des LSP connus par un routeur (envoyé périodiquement par le DIS), permet de détecter les LSP manquants. (4) **PSNP (Partial Sequence Number PDU)** : demande un LSP spécifique manquant, ou acquitte la réception d'un LSP.
+
+**C6.9** — Pour IP uniquement, la configuration IS-IS standard suffit (pas de commande CLNP à activer explicitement dans la plupart des implémentations modernes). Pour dual-stack CLNP+IP, il faudrait activer CLNS sur les interfaces. Dans ce tutoriel (IP uniquement), `ip router isis` sur les interfaces est suffisant. Le transport L2 de IS-IS fonctionne indépendamment d'IP.
+
+**C6.10** — Recommandation : **IS-IS**. Arguments : (1) meilleure scalabilité à 300+ routeurs, (2) pas de contrainte d'Area 0 (topologie plus flexible), (3) support natif et éprouvé de Segment Routing via les extensions TLV IS-IS (RFC 8667), (4) convergence plus rapide, (5) indépendant d'IP (plus robuste). OSPF peut aussi supporter SR (RFC 8665) mais IS-IS est historiquement plus mature pour les déploiements opérateurs SR.
 ---
 
 ## 7. Redistribution entre protocoles
@@ -591,6 +727,28 @@ La redistribution est apparue comme nécessité lors des migrations de RIP vers 
 
 **Q7.10** — Un ingénieur redistribue toutes les routes d'un VRF dans OSPF par erreur (des milliers de routes clients). Quel impact cela a-t-il sur les routeurs OSPF ? Que doit-il faire pour corriger la situation ?
 
+
+### Corrections — Section 7
+
+**C7.1** — Les routes RIP redistribuées apparaissent dans OSPF comme des **routes externes de type E2** (par défaut) ou E1 selon la configuration. Elles sont transportées par des **LSA de type 5** (AS External LSA), générés par l'ASBR et propagés dans tout le domaine OSPF.
+
+**C7.2** — Scénario : ASBR redistribue RIP→OSPF ET OSPF→RIP. Une route `10.0.0.0/8` apprise de RIP est redistribuée dans OSPF. Un routeur OSPF l'installe. Si la redistribution inverse (OSPF→RIP) est active, la route `10.0.0.0/8` est réinjectée dans RIP avec une métrique différente. RIP pense avoir une autre route vers `10.0.0.0/8`, la propage… boucle potentielle. **Solution avec tags** : lors de la redistribution RIP→OSPF, tagger les routes redistribuées (`tag 100`). Lors de la redistribution inverse OSPF→RIP, filtrer les routes avec ce tag (`route-map deny if tag=100`) pour éviter qu'elles repassent dans RIP.
+
+**C7.3** — La commande `subnets` est souvent nécessaire. Sans elle, Cisco IOS ne redistribue que les routes **classful** (les routes avec un masque correspondant exactement à la classe de l'adresse — /8 pour A, /16 pour B, /24 pour C). Avec `subnets`, toutes les routes indépendamment du masque sont redistribuées.
+
+**C7.4** — **E1** : métrique = coût externe + coût OSPF interne accumulé. Plus précis pour choisir le meilleur ASBR quand il y en a plusieurs. **E2** (défaut) : métrique = coût externe uniquement, le coût interne est ignoré. E1 est préféré quand il y a plusieurs ASBR redistribuant les mêmes routes externes et qu'on veut que les routeurs internes choisissent l'ASBR le plus proche.
+
+**C7.5** — Les routes OSPF internes (AD=110, métrique=50) sont préférées aux routes externes E2 (même AD=110, mais les routes internes ont la priorité sur les externes dans le processus de sélection OSPF). La route OSPF interne `10.5.0.0/24` à métrique 50 est installée.
+
+**C7.6** — **Vrai**, on peut redistribuer BGP dans OSPF. **Dangereux** si le BGP porte des milliers (ou millions) de routes Internet : injecter ces routes dans OSPF peut saturer la LSDB, provoquer des calculs SPF constants et crasher les routeurs OSPF. En production, on ne redistribue **jamais** la table BGP Internet complète dans un IGP.
+
+**C7.7** — Migration progressive : activer OSPF sur les routeurs migrés, redistribuer OSPF→RIP (avec filtrage pour éviter les boucles) pour que les routeurs encore en RIP voient les routes OSPF, redistribuer RIP→OSPF pour que les routeurs OSPF voient les routes RIP. Migrer progressivement les routeurs de RIP vers OSPF. Supprimer la redistribution quand tous les routeurs sont sur OSPF. Utiliser des tags pour éviter les boucles de redistribution bidirectionnelle.
+
+**C7.8** — Sans `subnets` : seules les routes classful sont redistribuées dans OSPF (ex: `192.168.0.0/24` est classful donc OK, mais `192.168.0.128/25` est un sous-réseau non-classful et serait ignoré). Avec `subnets` : toutes les routes indépendamment de leur masque sont redistribuées. Sur les réseaux modernes avec VLSM, `subnets` est **toujours nécessaire**.
+
+**C7.9** — Scénarios réels : (1) **Bordure entreprise/opérateur** : redistribution entre OSPF (réseau interne) et BGP (routes reçues de l'opérateur) sur le routeur de bordure Internet. (2) **Migration de protocole** : passage de RIP vers OSPF — coexistence temporaire avec redistribution bidirectionnelle filtrée pendant la transition.
+
+**C7.10** — Impact : des milliers de LSA de type 5 inondés dans tout le domaine OSPF → LSDB énorme → calculs SPF fréquents et lourds → CPU des routeurs OSPF saturé → potentiellement crash ou instabilité. Correction immédiate : supprimer la redistribution (`no redistribute`) sur l'ASBR → les LSA de type 5 expirent (MaxAge = 3600s ou flush immédiat) → LSDB revient à la normale.
 ---
 
 ## 8. Récapitulatif : quand utiliser quoi
@@ -626,6 +784,18 @@ La redistribution est apparue comme nécessité lors des migrations de RIP vers 
 
 **Q8.5** — Un ingénieur conçoit un réseau hybride : l'entreprise utilise OSPF, le WAN opérateur utilise IS-IS. Comment les deux domaines communiquent-ils leurs routes ?
 
+
+### Corrections — Section 8
+
+**C8.1** — **RIP** : 5 routeurs dans un même bâtiment, réseau simple, pas de contraintes de convergence strictes → RIP est suffisant et très simple à configurer. (Alternativement, OSPF reste toujours une meilleure pratique même pour les petits réseaux.)
+
+**C8.2** — **IS-IS** : 200 routeurs + SR-MPLS. IS-IS est le choix naturel pour les backbones SR. Il supporte nativement les extensions Segment Routing (RFC 8667), a une scalabilité supérieure à OSPF, et est le standard de facto chez les opérateurs qui déploient SR.
+
+**C8.3** — RIP utilise le hop count. Les deux liens (10 Gbps et 100 Mbps) ont le même nombre de sauts s'ils sont parallèles → RIP ferait du load-balancing entre les deux, ignorant complètement la différence de bande passante. Solution : migrer vers OSPF (métrique basée sur la bande passante) ou EIGRP.
+
+**C8.4** — OSPF peut être préféré à IS-IS dans un contexte opérateur quand : (1) l'équipe a déjà une expertise OSPF et peu de budget formation, (2) le réseau est principalement enterprise avec des équipements qui ont une meilleure implémentation OSPF qu'IS-IS, (3) le réseau n'est pas trop grand (< 100-150 routeurs en Area 0 ou avec areas bien découpées).
+
+**C8.5** — Les deux domaines (OSPF entreprise et IS-IS opérateur) communiquent via **redistribution** sur le routeur de bordure (qui participe aux deux protocoles). Les routes OSPF sont redistribuées dans IS-IS et vice versa, avec filtrage approprié pour éviter les boucles. En pratique, c'est souvent BGP qui sert d'intermédiaire entre les deux domaines plutôt qu'une redistribution directe IS-IS ↔ OSPF.
 ---
 
 ## 9. Exercices de compréhension générale
@@ -728,196 +898,7 @@ Dans le tutoriel MPLS (tutoriel 2), l'IGP sera utilisé pour deux rôles fondame
 
 ---
 
-## 10. Corrections
-
-### Corrections — Section 1
-
-**C1.1** — (a) `192.168.1.200` : correspond à `/25` (`192.168.1.128/25` couvre .128–.255) → **10.0.0.3**. (b) `192.168.2.1` : correspond à `/16` seulement → **10.0.0.1**. (c) `10.5.0.1` : aucune route spécifique → route par défaut → **10.0.0.4**. (d) `192.168.1.100` : correspond à `/24` et `/16`, mais `/24` est plus spécifique → **10.0.0.2**.
-
-**C1.2** — Le Longest Prefix Match sélectionne la route dont le masque est le plus long (le plus spécifique) parmi toutes les routes correspondant à l'adresse destination. C'est nécessaire pour permettre à des routes plus générales (agrégats) et plus spécifiques (sous-réseaux) de coexister dans la même table.
-
-**C1.3** — Pour 20 routeurs en maillage complet : chaque routeur a 19 routes statiques (une vers chaque autre). Total : 20 × 19 = **380 commandes `ip route`**.
-
-**C1.4** — Cas appropriés pour le routage statique : (1) route par défaut sur un routeur de bordure Internet (simple et stable) ; (2) réseau à un seul routeur ou réseau stub (un seul chemin possible, pas de redondance) ; (3) route de secours (floating static) avec AD élevée, utilisée uniquement si le protocole dynamique perd la route.
-
-**C1.5** — La route statique reste dans la table (elle ne détecte pas la panne) → les paquets sont envoyés vers le lien down → **black-hole**, les paquets sont perdus. Un protocole dynamique aurait détecté la panne via les mécanismes Hello/Dead, retiré la route, et calculé un chemin alternatif si disponible.
-
-**C1.6** — La **RIB** (Routing Information Base) est la table de routage "brute" peuplée par les protocoles de routage (plusieurs protocoles peuvent proposer des routes). La **FIB** (Forwarding Information Base) est une copie optimisée de la RIB, compilée pour le forwarding rapide (sur Cisco, c'est CEF qui peuple la FIB). C'est la **FIB** qui est consultée lors du forwarding paquet par paquet.
-
-**C1.7** — **Vrai**. Un routeur peut avoir plusieurs routes vers le même réseau, provenant de protocoles différents ou de chemins différents dans le même protocole. La sélection se fait en deux temps : (1) AD la plus faible (entre protocoles différents), (2) métrique la plus faible (au sein du même protocole). Si les deux chemins ont même AD et même métrique, les deux peuvent coexister → **ECMP (Equal-Cost Multi-Path)**.
-
-**C1.8** — La route par défaut (`0.0.0.0/0`) correspond à **toutes les adresses** car tout préfixe IP correspond à un masque de longueur 0 (aucun bit ne doit correspondre). Elle est utilisée en dernier recours lors du LPM : si aucune route plus spécifique ne correspond, la route par défaut est utilisée. C'est le "gateway of last resort".
-
-**C1.9** — Tous les paquets dont la destination ne correspond à **aucune** route plus spécifique dans la table de routage. En pratique, c'est tout le trafic Internet sortant sur un routeur de bordure.
-
-**C1.10** — Un **IGP** route à l'intérieur d'un même domaine administratif (une entreprise, un opérateur). Un **EGP** route entre domaines administratifs distincts (entre opérateurs). Exemples : OSPF/IS-IS (IGP), BGP (EGP). BGP n'est pas abordé ici car il est de nature différente (politique de routage, AS-PATH, attributs complexes) et suppose que l'IGP est déjà en place à l'intérieur de chaque AS.
-
----
-
-### Corrections — Section 2
-
-**C2.1** — OSPF (AD=110) est préféré à RIP (AD=120) — **l'AD d'OSPF est plus faible**. La route OSPF est installée dans la RIB. La route RIP est connue mais non installée.
-
-**C2.2** — La **distance administrative** compare des sources de routage **différentes** (quel protocole croire ?). La **métrique** compare des chemins **au sein du même protocole** (quel chemin est le moins coûteux ?). Exemple : deux routes `10.0.0.0/8` existent — une OSPF (AD=110, coût=20) et une IS-IS (AD=115, coût=5). L'AD est comparée en premier : OSPF gagne (110 < 115) même si IS-IS a un coût plus faible. La métrique IS-IS n'est jamais consultée dans ce cas.
-
-**C2.3** — "Convergé" signifie que tous les routeurs ont une vue cohérente, identique et à jour de la topologie du réseau. En état non-convergé, différents routeurs peuvent avoir des informations contradictoires : R1 pense que le réseau `10.0.0.0/24` est joignable via R2, tandis que R2 pense qu'il est inaccessible → les paquets peuvent tourner en boucle ou être perdus.
-
-**C2.4** — **Vrai**. Si deux chemins OSPF vers le même préfixe ont **la même métrique** (ECMP — Equal-Cost Multi-Path), les deux routes coexistent dans la RIB et la FIB, et le trafic est réparti entre elles (load-balancing). OSPF supporte jusqu'à 16 chemins ECMP par défaut sur Cisco.
-
-**C2.5** — VLSM (Variable Length Subnet Masking) permet d'utiliser des masques de longueur variable sur différents sous-réseaux d'un même réseau (ex: `/30` pour les liens WAN, `/24` pour les LANs, `/32` pour les loopbacks). Un protocole classful suppose un masque fixe par classe d'adresse (classe A = /8, B = /16, C = /24) — il ne peut pas transporter des masques différents, donc ne peut pas gérer VLSM.
-
-**C2.6** — Référence = 100 Mbps. Interface 1 Gbps : 100/1000 = 0.1 → arrondi à **1**. Interface 100 Mbps : 100/100 = **1**. Les deux interfaces ont le même coût → OSPF ne peut pas les différencier ! Solution : `auto-cost reference-bandwidth 10000` (10 Gbps), ce qui donne 10000/1000=10 pour 1G et 10000/100=100 pour 100M.
-
-**C2.7** — La route **statique** (AD=1) est installée dans la RIB — elle est préférée à OSPF (AD=110). Ce comportement n'est **pas toujours souhaitable** : si le lien qui mène à la destination de la route statique tombe, la route statique reste (black-hole), tandis qu'OSPF aurait détecté la panne. Solution : utiliser une route statique "flottante" avec une AD supérieure à OSPF.
-
-**C2.8** — Une **route flottante** est une route statique avec une AD **artificiellement élevée** (> celle du protocole dynamique). Elle n'est installée dans la RIB que si le protocole dynamique n'a plus de route pour cette destination. Exemple : `ip route 10.0.0.0 255.0.0.0 192.168.2.1 130` (AD=130 > OSPF=110) → n'est utilisée que si OSPF n'a plus la route. Cas d'usage : liaison de backup RNIS/4G qui ne s'active qu'en cas de panne du lien principal.
-
-**C2.9** — Un **IGP** gère le routage à l'intérieur d'un seul domaine administratif (une entreprise, un AS). Il est optimisé pour la convergence rapide et la métrique de chemin. Un **EGP** (BGP) gère le routage entre domaines administratifs distincts — il prend des décisions basées sur des politiques (AS-PATH, communities) plutôt que sur des métriques pures. Un opérateur utilise un IGP en interne pour la convergence rapide et BGP vers les autres opérateurs pour la politique de routage inter-AS.
-
-**C2.10** — RIP choisit le chemin à **2 sauts** (B) car sa métrique est le nombre de sauts. OSPF choisit le chemin à **3 sauts** (A) car sa métrique est le coût basé sur la bande passante — un lien 1 Gbps a un coût bien plus faible qu'un lien 10 Mbps. **OSPF a raison** : en réseau réel, la bande passante disponible est bien plus pertinente que le nombre de sauts pour déterminer la qualité d'un chemin.
-
----
-
-### Corrections — Section 3
-
-**C3.1** — 8 sauts entre A et I (`A→B→C→D→E→F→G→H→I`). Métrique sur I = **8**. Comme 8 < 16, la route est installée. Elle reste installable.
-
-**C3.2** — Sans triggered updates ni poison reverse : B avait la route `10.0.0.0/24` via C (métrique 1). Quand le lien B-C tombe, B ne peut plus joindre C. Mais A a appris `10.0.0.0/24` via B (métrique 2). A annonce à B : "je peux joindre 10.0.0.0/24, métrique 2". B installe cette route (métrique 3, via A). A apprend de B que `10.0.0.0/24` est maintenant à métrique 3 → A met à jour à 4. Et ainsi de suite jusqu'à 16 (infini). Pendant ce temps, les paquets vers `10.0.0.0/24` bouclent entre A et B.
-
-**C3.3** — **Split horizon** : R1 n'annonce pas à R2 une route apprise de R2. **Poison reverse** : R1 annonce à R2 la route apprise de R2 mais avec la métrique 16 (infini/inaccessible). Poison reverse est plus agressif car il force explicitement R2 à invalider sa route, alors que split horizon crée simplement un "silence" que R2 peut mal interpréter lors de la convergence.
-
-**C3.4** — Pire cas avec 5 routeurs `R1-R2-R3-R4-R5` et panne du lien R4-R5 : R4 détecte la panne et invalide la route R5 dans son prochain update (jusqu'à 30s). R3 reçoit l'info et propage dans son prochain update (30s de plus). Idem pour R2 puis R1. Total pire cas : 4 × 30s = **120 secondes**. En pratique, avec les triggered updates, c'est quasi-immédiat.
-
-**C3.5** — **Vrai**. RIPv2 inclut le masque de sous-réseau dans ses mises à jour (champ subnet mask dans l'entrée RTE). La commande indispensable sur Cisco est `no auto-summary` : sans elle, RIPv2 résume automatiquement les routes aux frontières classful, ce qui peut masquer des sous-réseaux et rendre le VLSM inopérant.
-
-**C3.6** — Le hop count ignore la bande passante, la latence, la fiabilité. Exemple : chemin A via 3 liens 10 Gbps (3 sauts) et chemin B via 1 lien 56 Kbps (1 saut). RIP choisit B (1 saut) — résultat catastrophique en termes de débit. OSPF aurait choisi A car son coût serait bien plus faible.
-
-**C3.7** — Un **triggered update** est une mise à jour envoyée immédiatement quand la topologie change, sans attendre le timer de 30s. Il réduit drastiquement le temps de convergence lors d'une panne (de 30s max à quelques secondes). Il est limité à l'information qui a changé (pas une mise à jour complète).
-
-**C3.8** — **Invalid timer (180s)** : si un routeur ne reçoit aucune mise à jour pour une route pendant 180s, il la marque comme inaccessible (métrique 16) et envoie un triggered update. **Flush timer (240s)** : 60s après l'invalid timer, si toujours pas de mise à jour, la route est **supprimée** de la table de routage.
-
-**C3.9** — Une route avec métrique 16 signifie **inaccessible** dans RIP. Le routeur ne l'installe pas dans sa table et la propage à ses voisins pour qu'ils invalident aussi cette destination.
-
-**C3.10** — Un réseau de plus de 15 sauts a des destinations injoignables pour RIP (métrique ≥ 16 = infini). En pratique, même avec 15 sauts, la convergence est très lente et peu fiable. Impact opérationnel : impossible de déployer RIP dans un réseau géographiquement étendu avec de nombreux nœuds intermédiaires.
-
----
-
-### Corrections — Section 4
-
-**C4.1** — (1) Mise sous tension → envoi de messages **Hello** sur toutes les interfaces, découverte des voisins directs. (2) Établissement d'adjacences avec les voisins qui répondent. (3) Génération d'un **LSA/LSP** décrivant les liens locaux. (4) **Inondation** du LSA/LSP à tous les routeurs du domaine (retransmis par chaque routeur sauf sur l'interface source). (5) Accumulation dans la **LSDB**, puis exécution de l'algorithme **SPF (Dijkstra)** pour calculer les meilleurs chemins → installation dans la RIB.
-
-**C4.2** — Les protocoles à état de lien ne souffrent pas du count-to-infinity car chaque routeur a une **vue complète et indépendante** de la topologie. Lors d'une panne, chaque routeur exécute SPF sur sa LSDB et calcule le nouveau chemin optimal sans avoir à "croire" ses voisins — il connaît la topologie globale et peut déduire lui-même que la route n'est plus valide.
-
-**C4.3** — La LSDB est **identique** sur tous les routeurs d'un même domaine de routage (ou d'une même aire pour OSPF) — c'est une propriété fondamentale garantie par le mécanisme d'inondation fiable. Si deux routeurs ont des LSDB différentes (désynchronisation), ils calculent des arbres SPF différents → routes incohérentes → potentiellement des boucles de routage ou des destinations injoignables.
-
-**C4.4** — Lors de l'inondation, chaque routeur retransmet un LSA/LSP reçu sur **toutes ses interfaces sauf celle par laquelle il l'a reçu**. Pour éviter les boucles infinies, chaque LSA porte un **numéro de séquence** : si un routeur reçoit un LSA avec un numéro de séquence qu'il connaît déjà (ou plus ancien), il le jette sans le retransmettre.
-
-**C4.5** — **RIP** : lors d'un changement, chaque routeur envoie une mise à jour complète de sa table à ses voisins, qui à leur tour envoient leur table complète, et ainsi de suite — propagation hop-by-hop, O(N) messages de taille complète. **OSPF** : seul le LSA du lien modifié est inondé (petit message), une seule fois à travers tout le réseau — O(N) messages mais de taille minimale. OSPF est beaucoup plus efficace.
-
-**C4.6** — L'algorithme SPF (Dijkstra) prend en entrée la **LSDB** (graphe de la topologie avec les coûts) et produit en sortie un **arbre des plus courts chemins** depuis le routeur local vers toutes les destinations. Il calcule itérativement la destination la moins coûteuse non encore traitée, puis met à jour les coûts de ses voisins.
-
-**C4.7** — SPF est un algorithme O(N log N) ou O(N²) selon l'implémentation, où N est le nombre de nœuds dans la topologie. Avec des centaines de routeurs, le recalcul SPF peut prendre des dizaines à centaines de millisecondes et consommer du CPU. C'est problématique dans les réseaux très grands ou instables (flap de liens → SPF déclenché fréquemment → CPU saturé). Solution : **SPF throttling** (délais entre recalculs).
-
-**C4.8** — **Vrai**. Une fois la LSDB construite et synchronisée, chaque routeur calcule SPF **indépendamment** sur sa propre copie de la LSDB. Il n'a pas besoin de consulter ses voisins pour cela. C'est précisément ce qui rend les protocoles à état de lien robustes et rapides à converger.
-
-**C4.9** — Si les LSDB sont différentes (désynchronisées), les routeurs calculent des arbres SPF différents et peuvent obtenir des **routes inconsistantes**. Risque : R1 envoie un paquet vers R2 en pensant que R2 peut forwarder vers R3, mais R2 pense que ce chemin n'existe plus → le paquet est perdu ou tourne en boucle.
-
-**C4.10** — Lors d'un changement : **RIP** génère des mises à jour périodiques complètes + triggered update → potentiellement lourd si les tables sont grandes. **OSPF/IS-IS** inondent uniquement le LSA/LSP du lien modifié (quelques centaines d'octets) → très efficace. Pendant la convergence initiale (synchronisation de la LSDB), les protocoles à état de lien peuvent générer plus de trafic, mais ce trafic est rapide et unique — contrairement aux cycles répétés de RIP.
-
----
-
-### Corrections — Section 5
-
-**C5.1** — L'Area 0 est obligatoire car elle est le **point de transit** entre toutes les aires. Sans Area 0, les routes inter-areas ne peuvent pas circuler (les LSA de type 3 sont générés par les ABR et propagés dans l'Area 0 vers les autres ABR). Si une aire est connectée uniquement à une autre aire non-backbone, elle est coupée du reste du réseau OSPF — ses routes ne sont pas redistribuées correctement. Solution : virtual link (connexion virtuelle via l'Area 0) pour les aires non directement connectées.
-
-**C5.2** — Sans DR, 8 routeurs formeraient `8×7/2 = 28` adjacences full entre toutes les paires. Avec DR, chaque routeur (DROther) établit uniquement des adjacences **Full** avec DR et BDR = `2 adjacences par DROther`. Pour 6 DROthers : `6×2 + 1 (DR-BDR) = 13` adjacences Full. Réduction significative du nombre d'adjacences et des LSA de type 2 générés.
-
-**C5.3** — Sans configuration manuelle, le Router-ID est l'adresse IP **la plus haute d'une interface Loopback active**, ou à défaut l'adresse IP la plus haute d'une interface physique active. Problème : si le Router-ID change (ajout d'une interface loopback plus haute, ou crash/redémarrage), le routeur doit reset ses adjacences OSPF et re-annoncer tous ses LSA avec le nouveau Router-ID → perturbation du réseau. C'est pourquoi le Router-ID doit toujours être **configuré manuellement** et statiquement.
-
-**C5.4** — Les 7 états : **Down → Init → 2-Way → ExStart → Exchange → Loading → Full**. L'état **Full** indique que les deux routeurs ont échangé et synchronisé leurs LSDB complètes.
-
-**C5.5** — **LSA type 3 (Summary LSA)** : généré par un **ABR**, transporte des routes agrégées d'une aire vers les autres aires via l'Area 0. Propagé dans le domaine OSPF (pas dans l'aire source). **LSA type 5 (AS External LSA)** : généré par un **ASBR**, transporte des routes externes (redistribuées depuis BGP, RIP, statique…). Propagé dans tout le domaine OSPF sauf les Stub Areas.
-
-**C5.6** — Référence 100 Mbps. Lien 1 Gbps : 100/1000 = 0.1 → arrondi à **1**. Lien 10 Gbps : 100/10000 = 0.01 → arrondi à **1**. Problème : tous les liens >= 100 Mbps ont le même coût OSPF = 1 → OSPF ne peut pas différencier un lien 100 Mbps d'un lien 10 Gbps. Solution : `auto-cost reference-bandwidth 10000` (10 Gbps comme référence) → 1G donne coût 10, 10G donne coût 1, 100M donne coût 100.
-
-**C5.7** — **Stub Area** : n'accepte pas les LSA de type 5 (routes externes). L'ABR injecte une route par défaut à la place. Utilisée quand les routeurs de l'aire n'ont pas besoin de connaître les routes externes. **NSSA (Not-So-Stubby Area)** : comme Stub, mais autorise un ASBR local à redistribuer des routes externes (via LSA de type 7, convertis en type 5 par l'ABR). Utilisée quand l'aire a un ASBR local mais qu'on veut quand même limiter les LSA de type 5 entrants.
-
-**C5.8** — Les hello-intervals **doivent être identiques** sur les deux extrémités d'un lien OSPF pour qu'une adjacence s'établisse (de même que le dead-interval). Si R1 a hello-interval=10 et R2 a hello-interval=5, **aucune adjacence ne s'établit** — les paramètres de timer sont échangés dans les paquets Hello et vérifiés par chaque côté.
-
-**C5.9** — **Faux**. Sur un lien **point-à-point** (deux routeurs seulement), il n'y a pas d'élection DR/BDR car la problématique de réduction des adjacences sur un réseau multi-accès ne se pose pas. Les deux routeurs passent directement en état Full sans élire de DR.
-
-**C5.10** — Pour garantir l'élection de R1 comme DR : `ip ospf priority 255` sur l'interface de R1 (valeur max). Pour empêcher un routeur d'être élu DR : `ip ospf priority 0` (priorité 0 exclut de l'élection). Attention : l'élection OSPF n'est **pas préemptive** — si un routeur avec priorité plus élevée arrive après l'élection, le DR actuel reste en place jusqu'à sa panne.
-
----
-
-### Corrections — Section 6
-
-**C6.1** — `49.0002.1921.6800.0001.00` :
-- AFI : `49`
-- Area ID : `0002`
-- System-ID : `1921.6800.0001`
-- NSEL : `00`
-Dérivation IP : `1921.6800.0001` → `192.1.168.0.00.01` → probablement `192.168.0.1` (avec padding).
-
-**C6.2** — IS-IS envoie ses PDU directement en **couche 2** (L2), sans IP. OSPF utilise IP (protocole 89). Avantage IS-IS : il fonctionne même si la configuration IP d'une interface est erronée ou absente, ce qui facilite le troubleshooting et le bootstrapping. IS-IS est aussi plus facile à étendre (TLV) sans dépendre des contraintes IP.
-
-**C6.3** — IS-IS L1 = routage intra-area (comme les areas OSPF non-backbone). IS-IS L2 = backbone inter-area (comme l'Area 0 OSPF). Différence majeure : IS-IS n'impose pas de topologie en étoile — le backbone L2 est un domaine plat, les aires L1 sont en périphérie. OSPF impose que toutes les aires soient physiquement connectées à l'Area 0.
-
-**C6.4** — **Faux**. IS-IS n'a pas de "area backbone" obligatoire au sens OSPF. Le backbone IS-IS est naturellement formé par tous les routeurs L2 (level-2-only ou level-1-2). Aucune area spéciale n'est requise.
-
-**C6.5** — **Non**. Un routeur `level-2-only` ne participe pas aux adjacences L1. Il ne peut former d'adjacences qu'avec d'autres routeurs L2 ou L1/L2 au niveau L2. Un routeur `level-1-only` n'a pas de capacité L2. Ils ne peuvent donc pas établir d'adjacence ensemble.
-
-**C6.6** — **DIS IS-IS** : élection préemptive (un routeur avec une priorité plus haute remplace immédiatement le DIS actuel), pas de backup DIS. **DR OSPF** : élection non-préemptive (le DR reste en place jusqu'à sa panne, même si un routeur avec une priorité plus haute apparaît), BDR existe comme backup.
-
-**C6.7** — `metric-style wide` active les **métriques étendues IS-IS** (32 bits par lien, jusqu'à 16 millions) au lieu des métriques narrow (6 bits, max 63 par lien). Indispensable pour Segment Routing (les SID nécessitent des métriques larges pour les calculs de chemins) et Traffic Engineering (RSVP-TE ou SR-TE utilisent des métriques TE qui ne tiennent pas dans le format narrow).
-
-**C6.8** — (1) **IIH (IS-IS Hello PDU)** : découverte et maintien des adjacences. (2) **LSP (Link State PDU)** : contient l'état des liens d'un routeur, inondé dans tout le domaine. (3) **CSNP (Complete Sequence Number PDU)** : liste complète des LSP connus par un routeur (envoyé périodiquement par le DIS), permet de détecter les LSP manquants. (4) **PSNP (Partial Sequence Number PDU)** : demande un LSP spécifique manquant, ou acquitte la réception d'un LSP.
-
-**C6.9** — Pour IP uniquement, la configuration IS-IS standard suffit (pas de commande CLNP à activer explicitement dans la plupart des implémentations modernes). Pour dual-stack CLNP+IP, il faudrait activer CLNS sur les interfaces. Dans ce tutoriel (IP uniquement), `ip router isis` sur les interfaces est suffisant. Le transport L2 de IS-IS fonctionne indépendamment d'IP.
-
-**C6.10** — Recommandation : **IS-IS**. Arguments : (1) meilleure scalabilité à 300+ routeurs, (2) pas de contrainte d'Area 0 (topologie plus flexible), (3) support natif et éprouvé de Segment Routing via les extensions TLV IS-IS (RFC 8667), (4) convergence plus rapide, (5) indépendant d'IP (plus robuste). OSPF peut aussi supporter SR (RFC 8665) mais IS-IS est historiquement plus mature pour les déploiements opérateurs SR.
-
----
-
-### Corrections — Section 7
-
-**C7.1** — Les routes RIP redistribuées apparaissent dans OSPF comme des **routes externes de type E2** (par défaut) ou E1 selon la configuration. Elles sont transportées par des **LSA de type 5** (AS External LSA), générés par l'ASBR et propagés dans tout le domaine OSPF.
-
-**C7.2** — Scénario : ASBR redistribue RIP→OSPF ET OSPF→RIP. Une route `10.0.0.0/8` apprise de RIP est redistribuée dans OSPF. Un routeur OSPF l'installe. Si la redistribution inverse (OSPF→RIP) est active, la route `10.0.0.0/8` est réinjectée dans RIP avec une métrique différente. RIP pense avoir une autre route vers `10.0.0.0/8`, la propage… boucle potentielle. **Solution avec tags** : lors de la redistribution RIP→OSPF, tagger les routes redistribuées (`tag 100`). Lors de la redistribution inverse OSPF→RIP, filtrer les routes avec ce tag (`route-map deny if tag=100`) pour éviter qu'elles repassent dans RIP.
-
-**C7.3** — La commande `subnets` est souvent nécessaire. Sans elle, Cisco IOS ne redistribue que les routes **classful** (les routes avec un masque correspondant exactement à la classe de l'adresse — /8 pour A, /16 pour B, /24 pour C). Avec `subnets`, toutes les routes indépendamment du masque sont redistribuées.
-
-**C7.4** — **E1** : métrique = coût externe + coût OSPF interne accumulé. Plus précis pour choisir le meilleur ASBR quand il y en a plusieurs. **E2** (défaut) : métrique = coût externe uniquement, le coût interne est ignoré. E1 est préféré quand il y a plusieurs ASBR redistribuant les mêmes routes externes et qu'on veut que les routeurs internes choisissent l'ASBR le plus proche.
-
-**C7.5** — Les routes OSPF internes (AD=110, métrique=50) sont préférées aux routes externes E2 (même AD=110, mais les routes internes ont la priorité sur les externes dans le processus de sélection OSPF). La route OSPF interne `10.5.0.0/24` à métrique 50 est installée.
-
-**C7.6** — **Vrai**, on peut redistribuer BGP dans OSPF. **Dangereux** si le BGP porte des milliers (ou millions) de routes Internet : injecter ces routes dans OSPF peut saturer la LSDB, provoquer des calculs SPF constants et crasher les routeurs OSPF. En production, on ne redistribue **jamais** la table BGP Internet complète dans un IGP.
-
-**C7.7** — Migration progressive : activer OSPF sur les routeurs migrés, redistribuer OSPF→RIP (avec filtrage pour éviter les boucles) pour que les routeurs encore en RIP voient les routes OSPF, redistribuer RIP→OSPF pour que les routeurs OSPF voient les routes RIP. Migrer progressivement les routeurs de RIP vers OSPF. Supprimer la redistribution quand tous les routeurs sont sur OSPF. Utiliser des tags pour éviter les boucles de redistribution bidirectionnelle.
-
-**C7.8** — Sans `subnets` : seules les routes classful sont redistribuées dans OSPF (ex: `192.168.0.0/24` est classful donc OK, mais `192.168.0.128/25` est un sous-réseau non-classful et serait ignoré). Avec `subnets` : toutes les routes indépendamment de leur masque sont redistribuées. Sur les réseaux modernes avec VLSM, `subnets` est **toujours nécessaire**.
-
-**C7.9** — Scénarios réels : (1) **Bordure entreprise/opérateur** : redistribution entre OSPF (réseau interne) et BGP (routes reçues de l'opérateur) sur le routeur de bordure Internet. (2) **Migration de protocole** : passage de RIP vers OSPF — coexistence temporaire avec redistribution bidirectionnelle filtrée pendant la transition.
-
-**C7.10** — Impact : des milliers de LSA de type 5 inondés dans tout le domaine OSPF → LSDB énorme → calculs SPF fréquents et lourds → CPU des routeurs OSPF saturé → potentiellement crash ou instabilité. Correction immédiate : supprimer la redistribution (`no redistribute`) sur l'ASBR → les LSA de type 5 expirent (MaxAge = 3600s ou flush immédiat) → LSDB revient à la normale.
-
----
-
-### Corrections — Section 8
-
-**C8.1** — **RIP** : 5 routeurs dans un même bâtiment, réseau simple, pas de contraintes de convergence strictes → RIP est suffisant et très simple à configurer. (Alternativement, OSPF reste toujours une meilleure pratique même pour les petits réseaux.)
-
-**C8.2** — **IS-IS** : 200 routeurs + SR-MPLS. IS-IS est le choix naturel pour les backbones SR. Il supporte nativement les extensions Segment Routing (RFC 8667), a une scalabilité supérieure à OSPF, et est le standard de facto chez les opérateurs qui déploient SR.
-
-**C8.3** — RIP utilise le hop count. Les deux liens (10 Gbps et 100 Mbps) ont le même nombre de sauts s'ils sont parallèles → RIP ferait du load-balancing entre les deux, ignorant complètement la différence de bande passante. Solution : migrer vers OSPF (métrique basée sur la bande passante) ou EIGRP.
-
-**C8.4** — OSPF peut être préféré à IS-IS dans un contexte opérateur quand : (1) l'équipe a déjà une expertise OSPF et peu de budget formation, (2) le réseau est principalement enterprise avec des équipements qui ont une meilleure implémentation OSPF qu'IS-IS, (3) le réseau n'est pas trop grand (< 100-150 routeurs en Area 0 ou avec areas bien découpées).
-
-**C8.5** — Les deux domaines (OSPF entreprise et IS-IS opérateur) communiquent via **redistribution** sur le routeur de bordure (qui participe aux deux protocoles). Les routes OSPF sont redistribuées dans IS-IS et vice versa, avec filtrage approprié pour éviter les boucles. En pratique, c'est souvent BGP qui sert d'intermédiaire entre les deux domaines plutôt qu'une redistribution directe IS-IS ↔ OSPF.
-
----
-
-### Corrections — Section 9 (Exercices généraux)
+### Corrections — Exercices généraux
 
 **CG.1** —
 a) **LSA de type 3** : générés par **R3 et R6** (les ABR) — ils résument les routes entre aires.
